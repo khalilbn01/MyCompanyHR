@@ -1,5 +1,4 @@
-<<<<<<< HEAD
-# 🏢 Kömutel Leave Management System
+# 🏢 MyCompanyHR Leave Management System
 
 A full-stack MERN web application to manage employee leave requests and short exit permissions.
 
