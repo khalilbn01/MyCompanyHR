@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # 🏢 Kömutel Leave Management System
 
 A full-stack MERN web application to manage employee leave requests and short exit permissions.
@@ -193,3 +194,6 @@ The UI follows the Kömutel design system:
 ## 👤 Author
 
 Built with the MERN stack following project requirements for clean architecture, JWT auth, RESTful APIs, reusable React components, and complete end-to-end functionality.
+=======
+# MyCompanyHR
+🏢 MyCompanyRH — Employee leave management system built with MongoDB, Express, React &amp; Node.js. Supports Staff, HR and Manager roles with full CRUD and approval workflow.
