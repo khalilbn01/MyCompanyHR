@@ -87,8 +87,8 @@ export default function Dashboard() {
               {recentLeaves.map((leave) => (
                 <tr key={leave._id}>
                   <td className="staff-name">{leave.requestingStaff?.name}</td>
-                  <td>{new Date(leave.startDate).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
-                  <td>{new Date(leave.endDate).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+                  <td>{new Date(leave.startDate).toLocaleDateString('en-GB')}</td>
+                  <td>{new Date(leave.endDate).toLocaleDateString('en-GB')}</td>
                   <td>{leave.leaveType}</td>
                   <td>{leave.duration}</td>
                   <td>{leave.reason}</td>

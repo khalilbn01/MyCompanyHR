@@ -10,13 +10,16 @@ const StatusBadge = ({ status }) => (
 const formatDate = (d) => {
   if (!d) return '—';
   const date = new Date(d);
-  return date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
-    ' ' + date.toTimeString().slice(0, 5);
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
 };
 
 export default function LeaveRequests() {
   const { user } = useAuth();
   const isHR = user?.role === 'hr' || user?.role === 'manager' || user?.role === 'admin';
+
 
   const [activeTab, setActiveTab] = useState('mine');
   const [leaves, setLeaves] = useState([]);

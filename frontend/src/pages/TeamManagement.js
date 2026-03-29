@@ -7,7 +7,7 @@ export default function TeamManagement() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'staff', department: '', position: '' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'staff', department: '', position: '', hireDate: '' });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [saving, setSaving] = useState(false);
@@ -35,8 +35,7 @@ export default function TeamManagement() {
 
   const openEdit = (u) => {
     setEditingUser(u);
-    setForm({ name: u.name, email: u.email, password: '', role: u.role, department: u.department || '', position: u.position || '' });
-    setError(''); setSuccess('');
+    setForm({ name: u.name, email: u.email, password: '', role: u.role, department: u.department || '', position: u.position || '', hireDate: u.hireDate ? u.hireDate.split('T')[0] : '' });    setError(''); setSuccess('');
     setShowForm(true);
   };
 
@@ -157,6 +156,15 @@ export default function TeamManagement() {
                     <option value="staff">Staff</option>
                     <option value="hr">HR</option>
                   </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Hire Date</label>
+                  <input
+                    className="form-input"
+                    type="date"
+                    value={form.hireDate || ''}
+                    onChange={(e) => setForm({ ...form, hireDate: e.target.value })}
+                  />
                 </div>
                 <div className="form-row">
                   <div className="form-group">
