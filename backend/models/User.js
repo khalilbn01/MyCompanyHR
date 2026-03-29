@@ -16,6 +16,7 @@ const userSchema = new mongoose.Schema(
     department: { type: String, trim: true },
     position: { type: String, trim: true },
     isActive: { type: Boolean, default: true },
+    hireDate: { type: Date, default: null },
   },
   { timestamps: true }
 );

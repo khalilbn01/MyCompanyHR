@@ -17,7 +17,6 @@ exports.getLeaves = async (req, res) => {
     if (req.user.role === 'staff') {
       query.requestingStaff = req.user.id;
     }
-    // hr and manager see everything
     const { startDate, endDate, status } = req.query;
     if (startDate) query.startDate = { $gte: new Date(startDate) };
     if (endDate) query.endDate = { ...query.endDate, $lte: new Date(endDate) };
@@ -34,20 +33,18 @@ exports.getLeaves = async (req, res) => {
   }
 };
 
-// @desc  Get pending requests for HR approval
+// @desc  Get pending requests for HR/Manager approval
 // @route GET /api/leaves/pending
 exports.getPendingLeaves = async (req, res) => {
   try {
     let query = { status: 'Pending' };
 
     if (req.user.role === 'hr') {
-      // HR only approves staff requests
-      const staffUsers = await require('../models/User').find({ role: 'staff' }).select('_id');
+      const staffUsers = await User.find({ role: 'staff' }).select('_id');
       const staffIds = staffUsers.map(u => u._id);
       query.requestingStaff = { $in: staffIds };
     } else if (req.user.role === 'manager' || req.user.role === 'admin') {
-      // Manager approves HR requests
-      const hrUsers = await require('../models/User').find({ role: 'hr' }).select('_id');
+      const hrUsers = await User.find({ role: 'hr' }).select('_id');
       const hrIds = hrUsers.map(u => u._id);
       query.requestingStaff = { $in: hrIds };
     }
@@ -72,6 +69,23 @@ exports.createLeave = async (req, res) => {
 
   try {
     const { leaveType, startDate, endDate, reason, description, approvingStaff } = req.body;
+
+    // Check balance for Paid Leave
+    if (reason === 'Paid Leave') {
+      const LeaveBalance = require('../models/LeaveBalance');
+      const balance = await LeaveBalance.findOne({ employee: req.user.id });
+
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      const diffDays = Math.max(Math.ceil(Math.abs(end - start) / (1000 * 60 * 60 * 24)), 1);
+
+      if (!balance || balance.balance < diffDays) {
+        return res.status(400).json({
+          success: false,
+          message: `Insufficient leave balance. Available: ${balance?.balance.toFixed(2) || 0} days, Requested: ${diffDays} days. Consider Unpaid Leave instead.`,
+        });
+      }
+    }
 
     const leave = await LeaveRequest.create({
       requestingStaff: req.user.id,
@@ -105,7 +119,6 @@ exports.getLeave = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Leave request not found' });
     }
 
-    // Staff can only view their own
     if (req.user.role === 'staff' && leave.requestingStaff._id.toString() !== req.user.id) {
       return res.status(403).json({ success: false, message: 'Not authorized' });
     }
@@ -116,7 +129,7 @@ exports.getLeave = async (req, res) => {
   }
 };
 
-// @desc  Update leave status (HR/Admin only)
+// @desc  Update leave status (HR/Manager)
 // @route PUT /api/leaves/:id/status
 exports.updateLeaveStatus = async (req, res) => {
   try {
@@ -126,17 +139,63 @@ exports.updateLeaveStatus = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Status must be Approved or Rejected' });
     }
 
-    const leave = await LeaveRequest.findByIdAndUpdate(
-      req.params.id,
-      { status, hrComment, approvingStaff: req.user.id },
-      { new: true, runValidators: true }
-    )
-      .populate('requestingStaff', 'name email department')
-      .populate('approvingStaff', 'name email');
+    const leave = await LeaveRequest.findById(req.params.id)
+      .populate('requestingStaff', 'name email department role');
 
     if (!leave) {
       return res.status(404).json({ success: false, message: 'Leave request not found' });
     }
+
+    // Deduct balance when Approved + Paid Leave
+if (status === 'Approved' && leave.reason === 'Paid Leave') {
+  const LeaveBalance = require('../models/LeaveBalance');
+  const balance = await LeaveBalance.findOne({ employee: leave.requestingStaff._id });
+
+  if (balance) {
+    const start = new Date(leave.startDate);
+    const end = new Date(leave.endDate);
+    const diffDays = Math.max(Math.ceil(Math.abs(end - start) / (1000 * 60 * 60 * 24)), 1);
+
+    balance.balance = Math.max(balance.balance - diffDays, 0);
+    balance.used += diffDays;
+    balance.history.push({
+      date: new Date(),
+      type: 'deduction',
+      days: -diffDays,
+      description: `Leave approved: ${leave.leaveType} (${leave.startDate.toDateString()} — ${leave.endDate.toDateString()})`,
+    });
+    await balance.save();
+  }
+}
+
+    // Restore balance if previously approved and now rejected
+    if (status === 'Rejected' && leave.status === 'Approved' && leave.reason === 'Paid Leave') {
+      const LeaveBalance = require('../models/LeaveBalance');
+      const balance = await LeaveBalance.findOne({ employee: leave.requestingStaff._id });
+
+      if (balance) {
+        const start = new Date(leave.startDate);
+        const end = new Date(leave.endDate);
+        const diffDays = Math.max(Math.ceil(Math.abs(end - start) / (1000 * 60 * 60 * 24)), 1);
+
+        balance.balance += diffDays;
+        balance.used = Math.max(balance.used - diffDays, 0);
+        balance.history.push({
+          date: new Date(),
+          type: 'adjustment',
+          days: diffDays,
+          description: `Leave rejected — balance restored: ${diffDays} days`,
+        });
+        await balance.save();
+      }
+    }
+
+    leave.status = status;
+    leave.hrComment = hrComment;
+    leave.approvingStaff = req.user.id;
+    await leave.save();
+
+    await leave.populate('approvingStaff', 'name email');
 
     res.json({ success: true, data: leave });
   } catch (err) {
@@ -144,7 +203,7 @@ exports.updateLeaveStatus = async (req, res) => {
   }
 };
 
-// @desc  Delete leave request (own pending only)
+// @desc  Delete leave request
 // @route DELETE /api/leaves/:id
 exports.deleteLeave = async (req, res) => {
   try {
@@ -174,7 +233,9 @@ exports.deleteLeave = async (req, res) => {
 exports.getStats = async (req, res) => {
   try {
     const userId = req.user.role === 'staff' ? req.user.id : null;
-    const matchStage = userId ? { requestingStaff: require('mongoose').Types.ObjectId.createFromHexString(userId) } : {};
+    const matchStage = userId
+      ? { requestingStaff: require('mongoose').Types.ObjectId.createFromHexString(userId) }
+      : {};
 
     const stats = await LeaveRequest.aggregate([
       { $match: matchStage },
